@@ -1,0 +1,12 @@
+repos:
+-   repo: https://github.com/psf/black
+    rev: 23.1.0 # Or choose a recent stable version
+    hooks:
+    -   id: black
+        language_version: python3 # Specify your python version if needed
+-   repo: https://github.com/PyCQA/isort
+    rev: 5.12.0 # Or choose a recent stable version
+    hooks:
+    -   id: isort
+        args: ["--profile", "black"] # Make isort compatible with black
+        language_version: python3 # Specify your python version if needed

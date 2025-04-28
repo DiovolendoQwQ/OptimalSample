@@ -1,0 +1,28 @@
+{
+  "extends": "./tsconfig.json", // Inherit base settings
+  "compilerOptions": {
+    "module": "CommonJS", // Main process requires CommonJS
+    "outDir": "./dist/main", // Output directory for compiled JS
+    "noEmit": false, // We need tsc to emit JS files for main process
+    "isolatedModules": false, // Not strictly needed for main process build
+    // Ensure moduleResolution is 'node' or 'nodenext' if using newer features
+    "moduleResolution": "node",
+    // Remove JSX settings if not needed, or keep if you use TSX in main (unlikely)
+    // "jsx": "react-jsx",
+  },
+  // Specify only the files needed for the main process and preload
+  "include": [
+    "src/main/**/*.ts",
+    "src/preload.ts",
+    "src/shared/**/*.ts",
+    "src/services/**/*.ts" // Add services directory
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/renderer", // Exclude renderer code
+    "tests",
+    "**/*.spec.ts",
+    "**/*.test.ts"
+  ]
+}
