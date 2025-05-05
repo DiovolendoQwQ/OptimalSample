@@ -8,13 +8,67 @@ const promises_1 = __importDefault(require("fs/promises"));
 const path_1 = __importDefault(require("path"));
 const better_sqlite3_1 = __importDefault(require("better-sqlite3")); // Re-enable better-sqlite3 import
 const exceljs_1 = __importDefault(require("exceljs")); // Import exceljs
-// Define the database directory path relative to the app's root path
+const fs_1 = require("fs"); // Import constants for access check
+// --- Utility Functions ---
+/**
+ * Safely checks if a table exists in the database.
+ * @param db The better-sqlite3 database instance.
+ * @param tableName The name of the table to check.
+ * @returns True if the table exists, false otherwise.
+ */
+function safeTableExists(db, tableName) {
+    try {
+        const row = db.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type='table' AND name = ?
+    `).get(tableName);
+        return !!row;
+    }
+    catch (error) {
+        console.error(`Error checking if table '${tableName}' exists:`, error);
+        return false; // Assume table doesn't exist on error
+    }
+}
+// Define the database directory path relative to the app's root path (Moved earlier)
 // Determine the correct base path depending on packaging
 const basePath = electron_1.app.isPackaged
     ? path_1.default.join(electron_1.app.getAppPath(), '..') // Go up one level from 'resources/app.asar' or 'resources/app'
     : path_1.default.join(__dirname, '..', '..', '..', '..'); // Go up from 'dist/main/main/ipcHandlers' to project root
 const dbDir = path_1.default.join(basePath, 'database');
-console.log(`Database directory configured to: ${dbDir} (isPackaged: ${electron_1.app.isPackaged})`); // Updated log
+console.log(`DB Handler: Database directory configured to: ${dbDir} (isPackaged: ${electron_1.app.isPackaged})`); // Log context
+// Define path for the central metadata JSON file (Now uses declared dbDir)
+const metadataFilePath = path_1.default.join(dbDir, 'metadata.json');
+/**
+ * Reads the central metadata JSON file.
+ * Returns an empty object if the file doesn't exist or is invalid.
+ */
+async function readMetadataFile() {
+    try {
+        await promises_1.default.access(metadataFilePath, fs_1.constants.F_OK); // Check if file exists using fsPromises alias 'fs'
+        const data = await promises_1.default.readFile(metadataFilePath, 'utf-8');
+        return JSON.parse(data);
+    }
+    catch (error) {
+        if (error.code === 'ENOENT') {
+            console.log('DB Handler: metadata.json not found, returning empty object.');
+            return {}; // File doesn't exist, start fresh
+        }
+        console.error('DB Handler: Error reading or parsing metadata.json:', error);
+        return {}; // Return empty on other errors (like invalid JSON)
+    }
+}
+/**
+ * Writes data to the central metadata JSON file. (Copied from db.ts for use here)
+ */
+async function writeMetadataFile(data) {
+    try {
+        await promises_1.default.writeFile(metadataFilePath, JSON.stringify(data, null, 2), 'utf-8');
+    }
+    catch (error) {
+        console.error('DB Handler: Error writing metadata.json:', error);
+        // Decide how to handle write errors, maybe throw
+    }
+}
 // Ensure database directory exists
 async function ensureDbDirectory() {
     try {
@@ -35,10 +89,46 @@ electron_1.ipcMain.handle('list-db-files', async () => {
     try {
         const files = await promises_1.default.readdir(dbDir);
         // Filter for files matching the expected naming convention (e.g., m-n-k-j-s-t-run-X-Y.db)
-        const dbFileRegex = /^\d+-\d+-\d+-\d+-\d+-\d+-run-\d+-\d+\.db$/; // Added -\d+ for the 't' parameter
+        const dbFileRegex = /^\d+-\d+-\d+-\d+-\d+-\d+-run-\d+-\d+\.db$/;
         const dbFiles = files.filter(file => file.endsWith('.db') && dbFileRegex.test(file));
-        console.log(`Found ${dbFiles.length} DB files matching regex.`); // Updated log
-        return dbFiles;
+        // Read the central metadata JSON file once
+        const allMetadata = await readMetadataFile();
+        // Get file stats and combine with metadata from JSON
+        const filesWithStats = await Promise.all(dbFiles.map(async (filename) => {
+            const stat = await promises_1.default.stat(path_1.default.join(dbDir, filename));
+            const fileMetadata = allMetadata[filename]; // Get metadata for this specific file
+            let createdAt = null;
+            if (fileMetadata?.createdAt) {
+                try {
+                    createdAt = new Date(fileMetadata.createdAt);
+                }
+                catch (dateError) {
+                    console.error(`DB Handler: Error parsing createdAt date for ${filename}:`, dateError);
+                }
+            }
+            // executionTime might be string or number, handle parsing like before
+            let execution_time = undefined;
+            if (fileMetadata?.executionTime !== undefined) {
+                const etValue = fileMetadata.executionTime;
+                if (typeof etValue === 'number') {
+                    execution_time = etValue; // Already a number
+                }
+                else if (typeof etValue === 'string') {
+                    const numValue = parseFloat(etValue);
+                    execution_time = isNaN(numValue) ? etValue : numValue; // Parse if string
+                }
+            }
+            return {
+                filename,
+                mtime: stat.mtime,
+                createdAt: createdAt || stat.mtime, // Fallback to mtime if createdAt not found in JSON
+                execution_time // Use execution_time read from JSON (or undefined)
+            };
+        }));
+        // Sort by mtime (newest first)
+        filesWithStats.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+        console.log(`Found ${filesWithStats.length} DB files, sorted by modification time.`);
+        return filesWithStats;
     }
     catch (error) {
         if (error.code === 'ENOENT') {
@@ -61,15 +151,39 @@ electron_1.ipcMain.handle('delete-db-file', async (_event, filename) => {
     }
     const filePath = path_1.default.join(dbDir, filename);
     try {
+        // 1. Delete the .db file
         await promises_1.default.unlink(filePath);
         console.log(`Successfully deleted file: ${filePath}`);
+        // 2. Update the metadata.json file
+        try {
+            const allMetadata = await readMetadataFile();
+            if (allMetadata[filename]) {
+                delete allMetadata[filename]; // Remove the entry for the deleted file
+                await writeMetadataFile(allMetadata); // Call the globally defined function
+                console.log(`DB Handler: Removed metadata for ${filename} from metadata.json.`);
+            }
+            else {
+                console.warn(`DB Handler: No metadata found for ${filename} in metadata.json during delete.`);
+            }
+        }
+        catch (metaJsonError) {
+            console.error(`DB Handler: Failed to update metadata.json after deleting ${filename}:`, metaJsonError);
+            // Decide if this should throw an error back to the renderer
+            // For now, just log it, as the primary file deletion succeeded.
+        }
     }
     catch (error) {
-        console.error(`Error deleting file ${filePath}:`, error);
+        console.error(`Error deleting file ${filePath}:`, error); // Log the full error
         if (error.code === 'ENOENT') {
+            // File already gone
             throw new Error(`File not found: ${filename}`);
         }
-        throw new Error(`Failed to delete file: ${filename}`);
+        else if (error.code === 'EPERM' || error.code === 'EBUSY') {
+            // Permissions issue or file locked
+            throw new Error(`Cannot delete file '${filename}'. It might be open in another program or the application lacks permissions.`);
+        }
+        // Generic error for other cases
+        throw new Error(`Failed to delete file '${filename}'. Reason: ${error.message || 'Unknown error'}`);
     }
 });
 // Handle 'get-db-content' request
@@ -137,8 +251,43 @@ electron_1.ipcMain.handle('get-db-content', async (_event, filename) => {
             }
         }
         // End of original DB reading logic (Now active)
-        const result = { ...params, samples, combos }; // Combine parts into final result
-        console.log(`DB Handler: Successfully read ${combos.length} combos from ${filename}`);
+        // Get metadata (created_at and execution_time)
+        // Read metadata from JSON file instead of SQLite metadata table
+        let createdAt = undefined;
+        let execution_time = undefined;
+        let paramsFromMeta = {}; // Store params read from metadata (if stored in JSON)
+        try {
+            const allMetadata = await readMetadataFile();
+            const fileMetadata = allMetadata[filename];
+            if (fileMetadata) {
+                if (fileMetadata.createdAt) {
+                    createdAt = fileMetadata.createdAt; // Already a string
+                }
+                if (fileMetadata.executionTime !== undefined) {
+                    execution_time = String(fileMetadata.executionTime); // Ensure it's a string for DbFileContent
+                }
+                // If params were stored in JSON (they are not currently, but could be)
+                // if (fileMetadata.params) { try { paramsFromMeta = JSON.parse(fileMetadata.params); } catch(e) {...} }
+            }
+            else {
+                console.warn(`DB Handler: No metadata found for ${filename} in metadata.json during get-db-content.`);
+            }
+        }
+        catch (e) {
+            console.error(`DB Handler: Error reading metadata.json during get-db-content for ${filename}:`, e);
+        }
+        // Combine params from results table (fallback) and metadata table (preferred if available)
+        // Note: DbFileContent type might need adjustment if params are solely from metadata now
+        const finalParams = { ...params, ...paramsFromMeta };
+        const result = {
+            ...finalParams, // Use combined params
+            samples,
+            combos,
+            createdAt, // Will be undefined if metadata.json didn't exist or key wasn't found
+            execution_time // Will be undefined if metadata.json didn't exist or key wasn't found
+        };
+        // Updated log message
+        console.log(`DB Handler: Successfully read ${combos.length} combos from ${filename}. Metadata source: metadata.json`);
         return result;
     }
     catch (error) {
@@ -243,19 +392,19 @@ electron_1.ipcMain.handle('export-db-to-excel', async (_event, filename) => {
         // 5. Prompt user for save location
         const defaultExcelFilename = `export-${filename.replace(/\.db$/, '.xlsx')}`;
         const saveDialogResult = await electron_1.dialog.showSaveDialog({
-            title: '导出结果为 Excel 文件',
+            title: 'Export the results as an Excel file',
             defaultPath: path_1.default.join(electron_1.app.getPath('documents'), defaultExcelFilename), // Suggest saving in Documents
             filters: [{ name: 'Excel Files', extensions: ['xlsx'] }],
         });
         if (saveDialogResult.canceled || !saveDialogResult.filePath) {
             console.log('Excel export cancelled by user.');
-            return { success: false, message: '导出已取消' };
+            return { success: false, message: 'Export canceled' };
         }
         const savePath = saveDialogResult.filePath;
         // 6. Write workbook to file
         await workbook.xlsx.writeFile(savePath);
         console.log(`Successfully exported data from ${filename} to ${savePath}`);
-        return { success: true, message: `成功导出到 ${savePath}`, filePath: savePath };
+        return { success: true, message: `Successfully exported to ${savePath}`, filePath: savePath };
     }
     catch (error) {
         console.error(`Error exporting ${filename} to Excel:`, error);
@@ -267,15 +416,15 @@ electron_1.ipcMain.handle('export-db-to-excel', async (_event, filename) => {
         } // Ensure DB closed on error
         // Provide specific error messages
         if (error.code === 'ENOENT') {
-            throw new Error(`源数据库文件未找到: ${filename}`);
+            throw new Error(`Source database file not found: ${filename}`);
         }
         else if (error.message?.includes('SQLITE_')) {
-            throw new Error(`读取数据库时出错 ${filename}: ${error.message}`);
+            throw new Error(`An error occurred while reading the database ${filename}: ${error.message}`);
         }
         else if (error.message?.includes('EPERM') || error.message?.includes('EBUSY')) {
-            throw new Error(`无法写入Excel文件，可能文件已被打开或权限不足: ${error.path || error.message}`);
+            throw new Error(`Cannot write to the Excel file，it may be open or you might not have sufficient permissions: ${error.path || error.message}`);
         }
-        throw new Error(error.message || `导出 ${filename} 失败`);
+        throw new Error(error.message || `Failed to export  ${filename} `);
     }
 });
 console.log('Database IPC handlers registered.');

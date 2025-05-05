@@ -43,16 +43,16 @@ const DbManagerPage: React.FC = () => {
     try {
       if (window.electronAPI) {
         await window.electronAPI.invoke('delete-db-file', filename);
-        message.success(`成功删除 ${filename}`);
+        message.success(`Successfully deleted ${filename}`);
         // 刷新列表
         await fetchDbFiles();
       } else {
-        throw new Error("Electron API 不可用");
+        throw new Error("Electron API unavailable");
       }
     } catch (err: any) {
-      console.error(`删除 ${filename} 时出错:`, err);
-      message.error(`删除失败: ${err.message}`);
-      setError(`删除 ${filename} 失败: ${err.message}`);
+      console.error(`Error deleting ${filename} :`, err);
+      message.error(`Deletion failed: ${err.message}`);
+      setError(`Failed to delete ${filename} : ${err.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -71,7 +71,7 @@ const DbManagerPage: React.FC = () => {
   // 定义表格列配置
   const columns = [
     {
-      title: '文件名',
+      title: 'File Name',
       dataIndex: 'filename',
       key: 'filename',
       render: (text: string) => (
@@ -81,20 +81,20 @@ const DbManagerPage: React.FC = () => {
       ),
     },
     {
-      title: '创建时间',
+      title: 'Creation Time',
       dataIndex: 'createdAt',
       key: 'createdAt',
       render: (text: string) => (
-        <Text type="secondary">{text || '未知'}</Text>
+        <Text type="secondary">{text || 'Unknown'}</Text>
       ),
     },
     {
-      title: '操作',
+      title: 'Action',
       key: 'action',
       width: 150,
       render: (_: any, record: { filename: string }) => (
         <Space size="small">
-          <Tooltip title="查看详情">
+          <Tooltip title="View Details">
             <Button
               type="primary"
               icon={<EyeOutlined />}
@@ -102,35 +102,35 @@ const DbManagerPage: React.FC = () => {
               onClick={() => handleView(record.filename)}
             />
           </Tooltip>
-          <Tooltip title="导出为 Excel">
+          <Tooltip title="handleView Excel">
             <Button
               icon={<FileExcelOutlined />}
               size="small"
               onClick={async () => { // Add async handler for export
-                message.loading({ content: `正在导出 ${record.filename}...`, key: 'exporting' });
+                message.loading({ content: `Exporting ${record.filename}...`, key: 'exporting' });
                 try {
                   if (window.electronAPI) {
                     const result = await window.electronAPI.invoke('export-db-to-excel', record.filename);
                     if (result.success) {
                       message.success({ content: result.message, key: 'exporting', duration: 5 });
                     } else {
-                      message.error({ content: result.message || '导出失败', key: 'exporting', duration: 5 });
+                      message.error({ content: result.message || 'Export failed', key: 'exporting', duration: 5 });
                     }
                   } else {
-                    throw new Error("Electron API 不可用");
+                    throw new Error("Electron API unavailable");
                   }
                 } catch (err: any) {
-                  message.error({ content: `导出错误: ${err.message}`, key: 'exporting', duration: 5 });
+                  message.error({ content: `Export error: ${err.message}`, key: 'exporting', duration: 5 });
                 }
               }}
             />
           </Tooltip>
           <Popconfirm
-            title="确定要删除这个结果文件吗？"
-            description="此操作不可恢复！"
+            title="Are you sure you want to delete this result file？"
+            description="This action cannot be undone！"
             onConfirm={() => handleDelete(record.filename)}
-            okText="确定"
-            cancelText="取消"
+            okText="Confirm"
+            cancelText="Cancel"
           >
             <Button
               danger
@@ -160,10 +160,10 @@ const DbManagerPage: React.FC = () => {
             style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
           >
             <Title level={2}>
-              <DatabaseOutlined /> 结果管理
+              <DatabaseOutlined />Result Management
             </Title>
             <Paragraph>
-              查看和管理已保存的算法计算结果。您可以查看详细信息或删除不再需要的结果文件。
+            View and manage saved algorithm computation results. You can view details or delete result files you no longer need.
             </Paragraph>
           </Card>
         </Col>
@@ -176,7 +176,7 @@ const DbManagerPage: React.FC = () => {
             title={
               <Space>
                 <Badge status="processing" />
-                <span>已保存结果</span>
+                <span>Saved Results</span>
                 <Badge
                   count={dbFiles.length}
                   style={{ backgroundColor: '#52c41a' }}
@@ -190,7 +190,7 @@ const DbManagerPage: React.FC = () => {
                 onClick={fetchDbFiles}
                 loading={isLoading}
               >
-                刷新列表
+                Refresh List
               </Button>
             }
             style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
@@ -209,10 +209,10 @@ const DbManagerPage: React.FC = () => {
                 hideOnSinglePage: true,
                 showSizeChanger: true,
                 pageSizeOptions: ['10', '20', '50'],
-                showTotal: (total) => `共 ${total} 条记录`,
+                showTotal: (total) => `Total ${total} records`,
               }}
               locale={{
-                emptyText: '没有找到保存的结果文件',
+                emptyText: 'No saved result files found',
               }}
               size="middle"
               rowKey="key"

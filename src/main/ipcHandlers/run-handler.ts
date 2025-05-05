@@ -6,20 +6,10 @@ import fs from 'fs/promises'; // Import fs/promises
 import Database from 'better-sqlite3'; // Import Database
 import { AlgorithmParams, AlgorithmResult, ProgressUpdate } from '../../shared/types'; // Use relative path
 import { validateAlgorithmParams } from '../../services/validator'; // Use relative path
-// import { saveResultToDb } from '../../services/db'; // Remove this import, save logic will be here
+import { saveResultToDb } from '../../services/db'; // Re-enable this import
 
-// Define DbRow locally as it's specific to the DB schema used here
-interface DbRow {
-  id: number;
-  param_m: number;
-  param_n: number;
-  param_k: number;
-  param_j: number;
-  param_s: number;
-  param_t: number;
-  samples_json: string;
-  combo_json: string;
-}
+// Remove local DbRow definition as it's no longer used directly in this file
+// (The actual DB interaction is now handled by the db service)
 
 // Interfaces are now imported from shared/types, removed commented duplicates
 
@@ -210,105 +200,19 @@ ipcMain.handle('run-algorithm', async (_event, params: AlgorithmParams): Promise
   }
   // End of Python Execution Block
 
-  // --- 3. Save Results to Database (Implemented Here) ---
-  let db: Database.Database | null = null;
-  let savedFilename: string | null = null;
+  // --- 3. Save Results using the DB Service ---
   try {
-    console.log("Main: Saving results to database...");
-
-    // Get the correct database directory (consistent with db-handler.ts)
-    const basePath = app.isPackaged
-      ? path.join(app.getAppPath(), '..') // Go up one level from 'resources/app.asar' or 'resources/app'
-      : path.join(__dirname, '..', '..', '..', '..'); // Go up from 'dist/main/main/ipcHandlers' to project root
-    const dbDir = path.join(basePath, 'database');
-    console.log(`Run Handler: Determined dbDir for saving: ${dbDir} (isPackaged: ${app.isPackaged})`);
-    await fs.mkdir(dbDir, { recursive: true }); // Ensure directory exists
-
-    // Generate filename based on params and a run counter/timestamp
-    // Find the next available run number for this parameter set
-    let runNumber = 1;
-    const baseFilenamePrefix = `${params.m}-${params.n}-${params.k}-${params.j}-${params.s}-${params.t}-run-`;
-    let potentialFilename: string;
-    while (true) {
-      potentialFilename = `${baseFilenamePrefix}${runNumber}-${resultData.combos.length}.db`;
-      const potentialPath = path.join(dbDir, potentialFilename);
-      try {
-        await fs.access(potentialPath); // Check if file exists
-        runNumber++; // Increment run number if file exists
-      } catch (e) {
-        // ENOENT means file does not exist, this is the filename we want
-        if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
-          savedFilename = potentialFilename;
-          break;
-        }
-        // Other errors during access check should be thrown
-        throw e;
-      }
-    }
-
-    const dbFilePath = path.join(dbDir, savedFilename);
-    console.log(`DB Service: Creating and opening database: ${dbFilePath}`);
-    db = new Database(dbFilePath); // Open for writing
-
-    // Create table if it doesn't exist
-    // Note: Storing each combo as a separate row is better for querying individual combos later if needed
-    // And avoids potential JSON size limits if storing all combos in one cell.
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS results (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        param_m INTEGER NOT NULL,
-        param_n INTEGER NOT NULL,
-        param_k INTEGER NOT NULL,
-        param_j INTEGER NOT NULL,
-        param_s INTEGER NOT NULL,
-        param_t INTEGER NOT NULL,
-        samples_json TEXT NOT NULL,
-        combo_json TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log("DB Service: Table 'results' ensured.");
-
-    // Prepare insert statement
-    const insertStmt = db.prepare(`
-      INSERT INTO results (param_m, param_n, param_k, param_j, param_s, param_t, samples_json, combo_json)
-      VALUES (@param_m, @param_n, @param_k, @param_j, @param_s, @param_t, @samples_json, @combo_json)
-    `);
-
-    // Use a transaction for batch insert performance
-    const insertMany = db.transaction((combosToInsert: number[][]) => {
-      const samplesJson = JSON.stringify(resultData.samples);
-      for (const combo of combosToInsert) {
-        insertStmt.run({
-          param_m: resultData.m,
-          param_n: resultData.n,
-          param_k: resultData.k,
-          param_j: resultData.j,
-          param_s: resultData.s,
-          param_t: resultData.t,
-          samples_json: samplesJson,
-          combo_json: JSON.stringify(combo)
-        });
-      }
-    });
-
-    console.log(`DB Service: Inserting ${resultData.combos.length} combinations...`);
-    insertMany(resultData.combos); // Execute the transaction
-    console.log("DB Service: Insertion complete.");
-
-    db.close(); // Close the database connection
-    console.log(`DB Service: Closed database ${dbFilePath}`);
-
-    console.log(`Main: Results saved successfully to ${savedFilename}.`);
-    return { ...resultData, filename: savedFilename }; // Optionally add filename to result
-
-  } catch (dbError: any) {
-    console.error("Main: Failed to save results to database:", dbError);
-    if (db && db.open) {
-      try { db.close(); } catch (e) { } // Close DB on error if open
-    }
+    console.log("Main: Calling saveResultToDb service...");
+    // Pass the complete resultData (including execution_time) to the service
+    const savedFilename = await saveResultToDb(resultData);
+    console.log(`Main: Results saved successfully via DB service to ${savedFilename}.`);
+    // Return the original resultData, potentially adding the filename if needed by frontend
+    // The service handles writing metadata.json now.
+    return { ...resultData, filename: savedFilename };
+  } catch (saveError: any) {
+    console.error("Main: Failed to save results using DB service:", saveError);
     // Rethrow the error to be caught by the renderer
-    throw new Error(`Failed to save results: ${dbError.message}`);
+    throw new Error(`Failed to save results: ${saveError.message}`);
   }
 });
 

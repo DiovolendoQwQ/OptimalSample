@@ -42,10 +42,8 @@ export interface DbFileContent {
   t: number; // 't' should be part of the saved parameters
   samples: number[];
   combos: number[][];
-  // Could add timestamp or runId if stored/needed, e.g.:
-  // id?: number; // If the ID is useful in the UI
-  // created?: string; // If timestamp is useful
-  // runId?: string;
+  createdAt?: string; // ISO format timestamp from metadata table
+  execution_time?: string; // Execution time in seconds from metadata table
 }
 
 // Structure representing a row in the *Python* SQLite database (used by save_result)

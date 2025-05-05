@@ -21,17 +21,17 @@ const AppNavigation: React.FC = () => {
     {
       key: '/',
       icon: <HomeOutlined />,
-      label: '首页 (输入参数)'
+      label: 'Home (Input Parameters)'
     },
     {
       key: '/db',
       icon: <DatabaseOutlined />,
-      label: '管理结果'
+      label: 'Manage Results'
     },
     {
       key: '/results',
       icon: <BarChartOutlined />,
-      label: '查看结果'
+      label: 'View Results'
     }
   ];
 
@@ -47,7 +47,7 @@ const AppNavigation: React.FC = () => {
         }}
       >
         <div style={{ height: 32, margin: 16, textAlign: 'center' }}>
-          <Title level={5} style={{ margin: 0, color: '#1890ff' }}>最优样本选择</Title>
+          <Title level={5} style={{ margin: 0, color: '#1890ff' }}>Optimal Sample Selection</Title>
         </div>
         <Menu
           theme="light"
@@ -59,7 +59,7 @@ const AppNavigation: React.FC = () => {
       </Sider>
       <Layout>
         <Header style={{ padding: '0 16px', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
-          <Title level={3} style={{ margin: '16px 0' }}>最优样本选择系统</Title>
+          <Title level={3} style={{ margin: '16px 0' }}>Optimal Sample Selection System</Title>
         </Header>
         <Content style={{ margin: '16px' }}>
           <div style={{ padding: 24, minHeight: 360, background: '#fff', borderRadius: 4 }}>
@@ -75,14 +75,14 @@ const AppNavigation: React.FC = () => {
           </div>
         </Content>
         <Footer style={{ textAlign: 'center', background: '#f0f2f5' }}>
-          最优样本选择系统 ©{new Date().getFullYear()} 版权所有
+        Optimal Sample Selection System ©{new Date().getFullYear()} All rights reserved
         </Footer>
       </Layout>
     </Layout>
   );
 };
 
-// 主应用组件
+// Main application component
 function App() {
   return (
     <ConfigProvider

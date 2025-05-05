@@ -59,13 +59,13 @@ const ResultPage: React.FC = () => {
   // 定义表格列配置
   const columns = [
     {
-      title: '序号',
+      title: 'Index',
       dataIndex: 'index',
       key: 'index',
       width: 80,
     },
     {
-      title: '组合',
+      title: 'Combination',
       dataIndex: 'combo',
       key: 'combo',
       render: (text: string) => (
@@ -94,10 +94,10 @@ const ResultPage: React.FC = () => {
             style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
           >
             <Title level={2}>
-              <BarChartOutlined /> 结果详情
+              <BarChartOutlined />  Result Details
             </Title>
             <Paragraph>
-              查看算法计算的详细结果，包括参数配置和生成的最优组合。
+            View detailed algorithm computation results, including parameter configurations and the generated optimal combinations.
             </Paragraph>
           </Card>
         </Col>
@@ -107,9 +107,9 @@ const ResultPage: React.FC = () => {
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
           <Col span={24}>
             <Card variant="borderless">
-              <Spin tip="加载中...">
+              <Spin tip="Loading...">
                 <div style={{ padding: '50px 0', textAlign: 'center' }}>
-                  <Paragraph>正在加载结果数据，请稍候...</Paragraph>
+                  <Paragraph>Loading result data, please wait...</Paragraph>
                 </div>
               </Spin>
             </Card>
@@ -121,7 +121,7 @@ const ResultPage: React.FC = () => {
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
           <Col span={24}>
             <Alert
-              message="加载错误"
+              message="Load Error"
               description={error}
               type="error"
               showIcon
@@ -138,7 +138,7 @@ const ResultPage: React.FC = () => {
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
                 description={
                   <span>
-                    请从<Text strong>「结果管理」</Text>页面选择一个结果文件查看详情
+                    Please select a result file from the <Text strong>\"Result Management\"</Text> page to view details.
                   </span>
                 }
               />
@@ -155,7 +155,7 @@ const ResultPage: React.FC = () => {
                 title={
                   <Space>
                     <FileTextOutlined />
-                    <span>参数配置</span>
+                    <span>Parameter Configuration</span>
                   </Space>
                 }
                 variant="borderless"
@@ -164,15 +164,15 @@ const ResultPage: React.FC = () => {
                 <Row gutter={[16, 16]}>
                   <Col xs={24} md={16}>
                     <Descriptions bordered size="small" column={{ xs: 1, sm: 2, md: 3 }}>
-                      <Descriptions.Item label="文件名">{displayFilename || '未命名结果'}</Descriptions.Item>
-                      <Descriptions.Item label="M值">{resultData.m}</Descriptions.Item>
-                      <Descriptions.Item label="N值">{resultData.n}</Descriptions.Item>
-                      <Descriptions.Item label="K值">{resultData.k}</Descriptions.Item>
-                      <Descriptions.Item label="J值">{resultData.j}</Descriptions.Item>
-                      <Descriptions.Item label="S值">{resultData.s}</Descriptions.Item>
+                      <Descriptions.Item label="Filename">{displayFilename || 'Unnamed Result'}</Descriptions.Item>
+                      <Descriptions.Item label="M">{resultData.m}</Descriptions.Item>
+                      <Descriptions.Item label="N">{resultData.n}</Descriptions.Item>
+                      <Descriptions.Item label="K">{resultData.k}</Descriptions.Item>
+                      <Descriptions.Item label="J">{resultData.j}</Descriptions.Item>
+                      <Descriptions.Item label="S">{resultData.s}</Descriptions.Item>
                     </Descriptions>
 
-                    <Divider orientation="left">输入样本</Divider>
+                    <Divider orientation="left">Input Samples</Divider>
                     <div>
                       {resultData.samples.map((sample, index) => (
                         <Tag color="blue" key={index} style={{ margin: '0 4px 4px 0' }}>
@@ -186,14 +186,14 @@ const ResultPage: React.FC = () => {
                     <Row gutter={[16, 16]}>
                       <Col span={12}>
                         <Statistic
-                          title="样本数量"
+                          title="Number of Samples"
                           value={resultData.samples.length}
                           prefix={<NumberOutlined />}
                         />
                       </Col>
                       <Col span={12}>
                         <Statistic
-                          title="组合数量"
+                          title="Number of Combinations"
                           value={resultData.combos.length}
                           prefix={<CheckCircleOutlined />}
                           valueStyle={{ color: '#3f8600' }}
@@ -212,7 +212,7 @@ const ResultPage: React.FC = () => {
                 title={
                   <Space>
                     <BarChartOutlined />
-                    <span>生成的最优组合 ({resultData.combos.length})</span>
+                    <span>Generated optimal combinations  ({resultData.combos.length})</span>
                   </Space>
                 }
                 variant="borderless"
@@ -226,13 +226,13 @@ const ResultPage: React.FC = () => {
                       hideOnSinglePage: tableData.length <= 10,
                       showSizeChanger: true,
                       pageSizeOptions: ['10', '20', '50', '100'],
-                      showTotal: (total) => `共 ${total} 条记录`,
+                      showTotal: (total) => `Total ${total} records`,
                     }}
                     size="middle"
                     scroll={{ y: 400 }}
                   />
                 ) : (
-                  <Empty description="没有找到组合结果" />
+                  <Empty description="No combination results found" />
                 )}
               </Card>
             </Col>

@@ -1,0 +1,17 @@
+name: optimal_samples_env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy >=1.26
+  - numba >=0.59
+  - fastapi >=0.115
+  - python-dotenv
+  - sqlalchemy >=2.0
+  - psutil
+  - pip
+  - pip:
+    - ortools>=9.12   # 注意！不是 google-ortools
+    - cupy-cuda12x
+    - "uvicorn[standard]"
