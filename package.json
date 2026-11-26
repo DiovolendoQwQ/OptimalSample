@@ -23,7 +23,7 @@
   "dependencies": {
     "@types/react-router-dom": "^5.3.3",
     "antd": "^5.15.0",
-    "better-sqlite3": "^11.9.1",
+    "better-sqlite3": "^13.2.0",
     "python-shell": "^5.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -41,8 +41,8 @@
     "@vitejs/plugin-react": "^4.4.1",
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
-    "electron": "^35.2.0",
-    "electron-builder": "^26.0.12",
+    "electron": "^45.5.0",
+    "electron-builder": "^26.18.1",
     "eslint": "^9.25.1",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
@@ -77,5 +77,8 @@
     "asarUnpack": [
       "dist/main/python/**/*"
     ]
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }
