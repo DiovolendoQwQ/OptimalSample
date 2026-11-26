@@ -1,0 +1,88 @@
+name: Verify Dependabot dependency updates
+on:
+  push:
+    branches: [codex/dependabot-verification-20261126]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Resolve the dependency updates
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm update js-yaml '@xmldom/xmldom' browserslist nanoid --package-lock-only --ignore-scripts --no-audit --no-fund
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Verify alert ranges in the lockfile
+        shell: bash
+        run: |
+          node <<'NODE'
+          const assert = require('node:assert/strict');
+          const packages = require('./package-lock.json').packages;
+          const minimums = {
+            'js-yaml': {3: [3, 15, 2], 4: [4, 3, 2]},
+            '@xmldom/xmldom': {0: [0, 8, 15]},
+            browserslist: {4: [4, 28, 7]},
+            nanoid: {3: [3, 3, 12]},
+          };
+          for (const [name, minimum] of Object.entries(minimums)) {
+            const matches = Object.entries(packages).filter(([path]) => path.endsWith('/' + name));
+            assert(matches.length, 'Missing dependency: ' + name);
+            for (const [path, {version}] of matches) {
+              const parts = version.split('.').map(Number);
+              const range = name === '@xmldom/xmldom' && parts[1] === 9 ? [0, 9, 12] : minimum[parts[0]];
+              assert(range && parts.every(Number.isInteger), path + ': unexpected version ' + version);
+              const difference = parts.map((part, i) => part - range[i]).find(value => value !== 0);
+              assert(difference === undefined || difference > 0, path + ': vulnerable version ' + version);
+              console.log(path + '@' + version);
+            }
+          }
+          assert(!Object.keys(packages).some(path => /(^|\/)node_modules\/extract-zip$/.test(path)), 'Legacy extract-zip is still installed');
+          assert(Object.keys(packages).some(path => path.endsWith('/@electron-internal/extract-zip')), 'Electron replacement extractor is missing');
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: updated-npm-manifests
+          path: |
+            package.json
+            package-lock.json
+          retention-days: 2
+      - name: Export lockfile delta
+        shell: bash
+        run: |
+          node <<'NODE'
+          const cp = require('node:child_process');
+          const zlib = require('node:zlib');
+          const fs = require('node:fs');
+          const before = JSON.parse(cp.execFileSync('git', ['show', 'HEAD:package-lock.json'], {encoding: 'utf8'}));
+          const current = fs.readFileSync('package-lock.json');
+          const after = JSON.parse(current);
+          const upsert = Object.fromEntries(Object.entries(after.packages).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(before.packages[key])));
+          const remove = Object.keys(before.packages).filter(key => !Object.hasOwn(after.packages, key));
+          const sha256 = require('node:crypto').createHash('sha256').update(current).digest('hex');
+          const {packages, ...header} = after;
+          const delta = zlib.gzipSync(JSON.stringify({header, upsert, remove, sha256, keys: Object.keys(after.packages)})).toString('base64');
+          for (const chunk of delta.match(/.{1,1000}/g)) {
+            console.log('LOCK_DELTA ' + chunk);
+          }
+          NODE
+      - name: Install from the resolved lockfile
+        run: npm ci --no-audit --no-fund
+      - name: Build renderer and Electron main process
+        run: npm run build
+      - name: Check SQLite inside Electron
+        shell: bash
+        run: |
+          ELECTRON_RUN_AS_NODE=1 ./node_modules/.bin/electron -e "const DB=require('better-sqlite3'); const db=new DB(':memory:'); const result=db.prepare('SELECT 42 AS value').get(); db.close(); require('node:assert/strict').equal(result.value,42);"
+      - name: Package the Windows application
+        run: npm exec -- electron-builder --dir --win
