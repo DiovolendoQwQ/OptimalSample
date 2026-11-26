@@ -47,7 +47,7 @@ jobs:
               console.log(path + '@' + version);
             }
           }
-          assert(!Object.keys(packages).some(path => path.endsWith('/extract-zip')), 'Legacy extract-zip is still installed');
+          assert(!Object.keys(packages).some(path => /(^|\/)node_modules\/extract-zip$/.test(path)), 'Legacy extract-zip is still installed');
           assert(Object.keys(packages).some(path => path.endsWith('/@electron-internal/extract-zip')), 'Electron replacement extractor is missing');
           NODE
       - uses: actions/upload-artifact@v4
@@ -71,7 +71,7 @@ jobs:
           const remove = Object.keys(before.packages).filter(key => !Object.hasOwn(after.packages, key));
           const sha256 = require('node:crypto').createHash('sha256').update(current).digest('hex');
           const {packages, ...header} = after;
-          const delta = zlib.gzipSync(JSON.stringify({header, upsert, remove, sha256})).toString('base64');
+          const delta = zlib.gzipSync(JSON.stringify({header, upsert, remove, sha256, keys: Object.keys(after.packages)})).toString('base64');
           for (const chunk of delta.match(/.{1,1000}/g)) {
             console.log('LOCK_DELTA ' + chunk);
           }
@@ -84,3 +84,5 @@ jobs:
         shell: bash
         run: |
           ELECTRON_RUN_AS_NODE=1 ./node_modules/.bin/electron -e "const DB=require('better-sqlite3'); const db=new DB(':memory:'); const result=db.prepare('SELECT 42 AS value').get(); db.close(); require('node:assert/strict').equal(result.value,42);"
+      - name: Package the Windows application
+        run: npm exec -- electron-builder --dir --win
